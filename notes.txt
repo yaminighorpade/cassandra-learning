@@ -1,0 +1,346 @@
+
+
+
+
+
+Introduction & Key Features
+- Age of Big Data : Structured Data (Columns & rows, resides in DB) , Semi Structured (doesn't reside in DB), Un structured Data (Mails, Images, videos etc)
+- Diff NoSQL DB : Key Value , Column Oriented , Document DB, Graph DB
+- Definition of Cassandra : Column Oriented No SQL Database, distributed , open source & highly available
+- CAP theorem
+  https://i.stack.imgur.com/Hx8h0.png
+  C -> All clients have the same value for the whole data set at any given point of time.
+  A -> All clients can read & write from the system at any given point of time.
+  P -> Tolerate a node disconnected from the system
+- Key Features
+  https://image.slidesharecdn.com/cassandraintrofeatures-140115130458-phpapp01-140116140029-phpapp01/95/cassandra-introduction-features-4-638.jpg?cb=1389881050
+  1. Distributed & Decentralised : Capable of running on multiple machines , no single point of failure - masterless architecture
+  2. Elastic Scalability : Scales horizontally by adding more machines that have all or some of the data. Adding of nodes increases performance throughput linearly
+  3. High Availability & Fault tolerance : Multiple computers operating in a cluster, data replicated, hence even if node down , replica nodes can service a request
+  4. Tunable Consistency : Can choose between strong & eventual consistency, configurable for every query
+  5. Column Oriented Key value store : Page 4 (Cassandra Data Model PDF)
+  6. High performance : All disk writes are sequential, append only operations
+
+Cassandra Architecture
+Node - Rack - Data Centre - Cluster
+https://image.slidesharecdn.com/intro-to-cassandra-150505152210-conversion-gate02/95/intro-to-cassandra-14-638.jpg?cb=1430857556
+
+Replication
+Page 20 - 21
+
+Consistency
+Page 26 & 27
+
+Cassandra Data Modelling
+Over View of Music Database :
+
+- Define Keyspace
+- List different keyspaces - DESC KEYSPACES;
+- Create Keyspace
+
+  CREATE KEYSPACE musicdb WITH replication = { 'class': 'SimpleStrategy', 'replication_factor' : 1 };
+
+- Create table
+- With only a partition key
+CREATE TABLE performer (
+ name       text,
+ type       text,
+ country    text,
+ style      text,
+ founded    int,
+ born       int,
+ died       int,
+ PRIMARY KEY (name)
+);
+
+INSERT INTO performer (name,  born, country, died, style, type) VALUES ('John Lennon', 1940, 'UK', 1980,'Rock','Artist');
+
+INSERT INTO performer (name, country, founded, style, type) VALUES ('The Beatles','UK',1957,'Rock','Artist');
+
+- Simple partition key & clustering columns
+CREATE TABLE albums_by_track (
+track_title   text,
+performer     text,
+year          int,
+album_title   text,
+PRIMARY KEY (track_title, performer, year, album_title));
+
+CREATE TABLE tracks_by_duration (
+track_title   text,
+minutes       int,
+seconds       int,
+album_title   text,
+year          int,
+number        int,
+PRIMARY KEY (track_title, minutes, seconds));
+
+- Composite partition key & clustering column
+CREATE TABLE tracks_by_album (
+album_title   text,
+year          int,
+performer     text static,
+genre         text static,
+number        int,
+track_title   text,
+PRIMARY KEY ((album_title, year), number) );
+
+- INSERT & UPDATE statements
+CREATE TABLE albums_by_performer (
+performer   text,
+year        int,
+title       text,
+genre       text,
+PRIMARY KEY (performer, year, title)
+) WITH CLUSTERING ORDER BY (year DESC, title ASC);
+
+INSERT INTO albums_by_performer (performer, year, title, genre) VALUES ('Adele', 2008, '19', 'Soul');
+INSERT INTO albums_by_performer (performer, year, title, genre) VALUES ('Adele', 2011, '21', 'Soul');
+INSERT INTO albums_by_performer (performer, year, title, genre) VALUES ('Adele', 2015, '25', 'Soul');
+
+INSERT INTO albums_by_performer (performer, year, title, genre) VALUES ('The Beatles', 1966, 'Revolver', 'Rock');
+INSERT INTO albums_by_performer (performer, year, title) VALUES ('The Beatles', 1995, 'Beatlemania');
+
+UPDATE albums_by_performer
+SET genre = 'Rock'
+WHERE performer = 'The Beatles' AND
+year = 1995 AND
+title = 'Beatlemania';
+
+- UPSERT
+UPDATE albums_by_performer
+SET genre = 'Rock'
+WHERE performer = 'The Beatles' AND
+year = 1969 AND
+title = 'Yellow Submarine';
+
+- LWT
+
+/* Row already exists */
+INSERT INTO albums_by_performer (performer, year, title) VALUES ('The Beatles', 1966, 'Revolver') IF NOT EXISTS;
+
+/*Row doesnt exists*/
+INSERT INTO albums_by_performer (performer, year, title) VALUES ('The Beatles', 1969, 'Abbey Road') IF NOT EXISTS;
+
+UPDATE albums_by_performer SET genre = null WHERE performer = 'The Beatles' AND year = 1966 AND title = 'Revolver' IF genre = 'Rock1';
+
+UPDATE albums_by_performer SET genre = 'Rock' WHERE performer = 'The Beatles' AND year = 1966 AND title = 'Revolver' IF genre = null ;
+
+UUID & TIMEUUID
+- Universal unique identifier, generated programmatically , UUID with time embedded in it - TIMEUUID
+hex{8}-hex{4}-hex{4}-hex{4}-hex{12}
+
+CREATE TABLE track_ratings_by_user (
+user        uuid,
+activity    timeuuid,
+rating      int,
+album_title text,
+album_year  int,
+track_title text,
+PRIMARY KEY (user, activity)
+) WITH CLUSTERING ORDER BY (activity DESC);
+
+TTL
+
+INSERT INTO track_ratings_by_user (user, activity, rating, album_title, album_year, track_title)
+VALUES (52b11d6d-16e2-4ee2-b2a9-5ef1e9589328, now(),5,'Revolver',1966,'She Said She Said')
+USING TTL 30;
+
+INSERT INTO track_ratings_by_user (user, activity, rating, album_title, album_year, track_title)
+VALUES (52b11d6d-16e2-4ee2-b2a9-5ef1e9589328, now(),5,'Revolver',1966,'Doctor Robert');
+
+INSERT INTO track_ratings_by_user (user, activity, rating, album_title, album_year, track_title)
+VALUES (52b11d6d-16e2-4ee2-b2a9-5ef1e9589328, now(),5,'Revolver',1966,'For No One');
+
+INSERT INTO track_ratings_by_user (user, activity, rating, album_title, album_year, track_title)
+VALUES (52b11d6d-16e2-4ee2-b2a9-5ef1e9589328, now(),5,'Revolver',1966,'Good Day Sunshine');
+
+INSERT INTO track_ratings_by_user (user, activity, rating, album_title, album_year, track_title)
+VALUES (62a11d6d-16e2-4ee2-b2a9-5ef1e9589328, now(),3,'Revolver',1966,'Doctor Robert');
+
+INSERT INTO track_ratings_by_user (user, activity, rating, album_title, album_year, track_title)
+VALUES (62a11d6d-16e2-4ee2-b2a9-5ef1e9589328, now(),3,'Revolver',1966,'For No One');
+
+/* Without TTL*/
+INSERT INTO track_ratings_by_user (user, activity, rating, album_title, album_year, track_title)
+VALUES (62a11d6d-16e2-4ee2-b2a9-5ef1e9589328, now(),4,'Revolver',1966,'She Said She Said');
+
+select * from track_ratings_by_user;
+
+- Delete a row
+DELETE FROM track_ratings_by_user
+WHERE user = 52b11d6d-16e2-4ee2-b2a9-5ef1e9589328 AND
+activity = ?;
+
+- Delete from partition
+DELETE FROM track_ratings_by_user
+WHERE user = 52b11d6d-16e2-4ee2-b2a9-5ef1e9589328;
+
+- Delete data of a column
+DELETE rating FROM track_ratings_by_user
+WHERE user = 62a11d6d-16e2-4ee2-b2a9-5ef1e9589328 AND
+activity = ?;
+
+- BATCH Statement : Atomic but no isolation, statements in batch are not executed in any particular order. LWT?
+BEGIN BATCH
+DELETE FROM albums_by_performer WHERE performer = 'The Beatles' AND year = 1966 AND title = 'Revolver';
+INSERT INTO albums_by_performer (performer, year, title, genre) VALUES ('The Beatles', 1966, 'Revolver', 'Rock');
+APPLY BATCH;
+
+BEGIN BATCH
+INSERT INTO albums_by_performer (performer, year, title, genre) VALUES ('The Beatles', 1966, 'Revolver', 'Rock');
+INSERT INTO tracks_by_album (album_title, year, performer, genre , number, track_title) VALUES
+('Revolver', 1966, 'The Beatles', 'Rock', 5,'She Said She Said' );
+APPLY BATCH;
+
+
+- COPY
+COPY tracks_by_album (album_title, year, performer, genre , number, track_title)
+FROM 'tracks_by_album.csv' WITH HEADER = TRUE;
+
+COPY tracks_by_duration (track_title, minutes, seconds, album_title, number, year)
+FROM 'tracks_by_duration.csv' WITH HEADER = TRUE;
+
+COPY tracks_by_album (album_title, year, performer, genre , number, track_title)
+TO 'tracks_by_album_1.csv';
+
+COPY tracks_by_album (album_title, year, performer, genre , number, track_title)
+TO 'tracks_by_album_2.csv' WITH HEADER = TRUE ;
+
+- SELECT
+-- Select from a partition
+select * from tracks_by_album where album_title = 'Revolver' and year = 1966;
+--Select for a particular row
+select * from tracks_by_album where album_title = 'Revolver' and year = 1966 and number = 1;
+-- IN
+select * from tracks_by_album where album_title = 'Revolver' and year = 1966 and number IN (1,2,3);
+select * from albums_by_performer where performer in ('The Beatles','Adele') and year = 1995;
+-- ALLOW FILTERING
+select * from albums_by_performer where year > 2010 ALLOW FILTERING;
+-- In equality operators
+
+INSERT INTO tracks_by_duration (track_title, minutes, seconds, album_title, number, year) VALUES ('Dummy1',3,13,'DT',1,2022)
+
+select * from tracks_by_duration where track_title = 'Dummy1' and minutes > 3 and seconds = 13; //will fail
+select * from tracks_by_duration where track_title = 'Dummy1' and minutes =  3 and seconds >  13;
+select * from tracks_by_duration where minutes > 3 AND seconds = 1 allow filtering ;
+
+--LIMIT
+select * from tracks_by_album where album_title = 'Revolver' and year = 1966 LIMIT 5;
+
+--Counter tables : Only column that can be not counter is the primary key.
+CREATE TABLE stats (
+performer   text,
+albums      counter,
+concerts    counter,
+PRIMARY KEY (performer));
+
+UPDATE stats
+SET albums = albums + 1, concerts = concerts + 10 WHERE performer = 'The Beatles';
+
+INSERT INTO stats (performer, albums, concerts) VALUES ('Adele',4,25); //Wont be allowed to do this
+
+--Collection columns : Cant be part of primary key & nested inside another collection column
+Set, List , Map, Tuple, UDT
+
+--- Set
+CREATE TABLE band (
+name    text PRIMARY KEY,
+members set<text>
+);
+
+INSERT INTO band (name, members)
+VALUES ('The Beatles', {'Paul', 'John', 'George', 'Ringo'});
+
+/* Manipulating a SET */
+UPDATE band SET members = members + {'Pete', 'Stuart', 'Paul', 'Jonathan'} WHERE name = 'The Beatles';
+
+UPDATE band SET members = members - {'Jonathan'} WHERE name = 'The Beatles';
+
+DELETE members FROM band WHERE name = 'The Beatles';
+
+--- list
+CREATE TABLE song (
+id          UUID PRIMARY KEY,
+title       text,
+songwriters list<text>
+);
+
+INSERT INTO song (id, title, songwriters) VALUES (252608cb-0f56-4cf3-82ee-b7fe00f3920f,
+'I Want to Hold Your Hand', ['John', 'Paul']);
+
+/* Manipulating a List */
+//appending
+UPDATE song SET songwriters = songwriters + ['Paul', 'Jonathan'] WHERE id = 252608cb-0f56-4cf3-82ee-b7fe00f3920f;
+
+//prepending
+UPDATE song SET songwriters = ['Patrick'] + songwriters WHERE id = 252608cb-0f56-4cf3-82ee-b7fe00f3920f;
+
+//updating
+UPDATE song SET songwriters[3] = 'Ringo' WHERE id = 252608cb-0f56-4cf3-82ee-b7fe00f3920f;
+
+//subtracting
+UPDATE song SET songwriters = songwriters - ['Patrick', 'Jonathan', 'Ringo'] WHERE id = 252608cb-0f56-4cf3-82ee-b7fe00f3920f;
+
+//deleting
+DELETE songwriters[0], songwriters[1] FROM song WHERE id = 252608cb-0f56-4cf3-82ee-b7fe00f3920f;
+
+---Map
+CREATE TABLE album (
+title     text,
+year      int,
+tracks    map<int,text>,
+PRIMARY KEY ((title, year))
+);
+
+INSERT INTO album (title, year, tracks) VALUES ('Revolver', 1966, {1: 'Taxman', 2: 'Eleanor Rigby'});
+
+//Updating
+ UPDATE album SET tracks[14] = 'Yellow Submarine' WHERE title = 'Revolver' AND year = 1966;
+ UPDATE album SET tracks[14] = 'Tomorrow Never Knows' WHERE title = 'Revolver' AND year = 1966;
+
+//Deleting
+ DELETE tracks[14] FROM album WHERE title = 'Revolver' AND year = 1966;
+ DELETE tracks FROM album WHERE title = 'Revolver' AND year = 1966;
+
+ ---UDT
+CREATE TYPE track (
+album_title   text,
+album_year    int,
+track_title   text );
+
+CREATE TABLE track_ratings_by_user_v2 (
+user     uuid,
+activity timeuuid,
+rating   int,
+song     frozen<track>,
+PRIMARY KEY (user, activity)
+) WITH CLUSTERING ORDER BY (activity desc);
+
+//Inserting
+INSERT INTO track_ratings_by_user_v2 (user, activity, rating, song ) VALUES
+(6ed4f220-5361-11e4-8d89-c971d060d947, now(), 10,
+{album_title: 'Let It Be', album_year: 1970,
+track_title: 'Let It Be'});
+
+//Update
+UPDATE track_ratings_by_user_v2
+SET song = {album_title: 'Let It Be', album_year: 1970, track_title: 'Two of Us'}
+WHERE user = 6ed4f220-5361-11e4-8d89-c971d060d947 AND activity = ?;
+
+
+//Delete
+ DELETE song from track_ratings_by_user_v2
+ WHERE user = 6ed4f220-5361-11e4-8d89-c971d060d947 AND activity = ?;
+
+ Secondary Indexes
+ -- Should be created on low cardinality Columns
+ -- Not be created on counter columns, frequently updated/deleted columns , to look for a row in a large partition unless narrowly queried
+
+select * from tracks_by_album where genre = 'Rock';
+CREATE INDEX tracks_by_genre_key ON tracks_by_album (genre);
+
+select * from tracks_by_album where year = 1966;
+CREATE INDEX tracks_by_year_key ON tracks_by_album (year);
+
+select * from tracks_by_album where number = 2;
+CREATE INDEX tracks_by_number_key ON tracks_by_album (number);
