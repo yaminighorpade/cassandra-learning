@@ -1,8 +1,3 @@
-
-
-
-
-
 Introduction & Key Features
 - Age of Big Data : Structured Data (Columns & rows, resides in DB) , Semi Structured (doesn't reside in DB), Un structured Data (Mails, Images, videos etc)
 - Diff NoSQL DB : Key Value , Column Oriented , Document DB, Graph DB
